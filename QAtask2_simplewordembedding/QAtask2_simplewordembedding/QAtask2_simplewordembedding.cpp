@@ -10,10 +10,11 @@
 #include <random>
 
 #define _DEBUG 0;
+#define TRAIN 0;
 
 typedef int LABEL;
-const int emb_dim = 50;
-
+const int emb_dim = 200;
+std::array<double, emb_dim> UNKNOWN;
 
 void LoadDict(
 	std::map<std::string, std::array<double, emb_dim>>& dict
@@ -23,14 +24,26 @@ void LoadDict(
 
 	dict.clear();
 
-	const char File_Embedding[] = "c:\\data\\word_embedding_size_50.txt";
-	//const char File_Embedding[] = "c:\\data\\word_embedding_simple.txt"; // for debug
+#if _DEBUG
+	const char File_Embedding[] = "c:\\data\\word_embedding_simple.txt"; // for debug
+#else
+	const char File_Embedding[] = "c:\\data\\word_embedding_size_200.txt";
+#endif
 	std::ifstream fin(File_Embedding);
 	
 	std::string new_word;
 #if _DEBUG
 	int it = 0;
 #endif
+
+	//Read *UNKNOWN*
+	fin >> new_word;
+	UNKNOWN.fill(0);
+	for (int i = 0; i < emb_dim; ++i)
+	{
+		fin >> UNKNOWN[i];
+	}
+
 	while (!fin.eof())
 	{
 #if _DEBUG
@@ -73,7 +86,7 @@ const std::uniform_real_distribution<> dist(0, 1);
 std::random_device rd;
 std::mt19937 gen(rd());
 
-void LookUp(
+bool LookUp(
 	const std::map<std::string, std::array<double, emb_dim>>& dict,
 	const std::string& word,
 	std::array<double, emb_dim>& v
@@ -83,12 +96,17 @@ void LookUp(
 	
 	if (search == dict.end())
 	{
-		for (int i = 0; i < emb_dim; ++i)
-			v[i] = dist(gen);
+
+		//for (int i = 0; i < emb_dim; ++i)
+		//	v[i] = dist(gen);
+
+		v = UNKNOWN;
+		return false;
 	}
 	else
 	{
 		v = search->second;
+		return true;
 	}
 }
 
@@ -100,8 +118,11 @@ void LoadSentence(
 {
 	fprintf(stderr, "Load Sentences...\n");
 
-	//const char Train_data[] = "C:\\Data\\msr_paraphrase_train.txt";
-	const char Train_data[] = "C:\\Data\\msr_paraphrase_test.txt";
+#if TRAIN
+	const char Train_data[] = "C:\\Data\\msr_train.txt";
+#else
+	const char Train_data[] = "C:\\Data\\msr_test.txt";
+#endif
 
 	std::ifstream fin(Train_data);
 
@@ -123,16 +144,23 @@ void LoadSentence(
 		v1.fill(0);
 
 		char ch;
-		fin >> ch;
+		fin.get(ch);
+
 		std::string sentence;
-		getline(fin, sentence, '\t');
-		//getline(fin, sentence);
-		boost::char_separator<char> sep{ " \t.,\'?"};
+		getline(fin, sentence);
+		
+		//boost::char_separator<char> sep{ " \t.,\'?"};
+		boost::char_separator<char> sep{ " \t" };
 		boost::tokenizer<boost::char_separator<char>> tok1(sentence, sep);
 		int len = 0;
+		int c_unknown = 0;
 		for (const auto& it : tok1)
 		{
-			LookUp(dict, it, v);
+#if _DEBUG
+			fprintf(stderr, "%s\n", it);
+#endif
+			if (!LookUp(dict, it, v))
+				++c_unknown;
 			for (int i = 0; i < emb_dim; ++i)
 			{
 				v1[i] += v[i];
@@ -143,14 +171,17 @@ void LoadSentence(
 		{
 			v1[i] /= len;
 		}
+		fprintf(stderr, "Sentence %d S1: UNKNOWN / LENGTH = %d / %d\n", total_sentence, c_unknown, len);
 
 		v2.fill(0);
-		getline(fin, sentence, '\n');
+		getline(fin, sentence);
 		boost::tokenizer<boost::char_separator<char>> tok2(sentence, sep);
 		len = 0;
+		c_unknown = 0;
 		for (const auto& it : tok2)
 		{
-			LookUp(dict, it, v);
+			if (!LookUp(dict, it, v))
+				++c_unknown;
 			for (int i = 0; i < emb_dim; ++i)
 			{
 				v2[i] += v[i];
@@ -161,6 +192,7 @@ void LoadSentence(
 		{
 			v2[i] /= len;
 		}
+		fprintf(stderr, "Sentence %d S2: UNKNOWN / LENGTH = %d / %d\n", total_sentence, c_unknown, len);
 
 		thetas.push_back(ComputeAngel(v1, v2));
 	}
@@ -180,12 +212,16 @@ int main()
 	target.clear();
 	LoadSentence(dict, thetas, target);
 
+//TODO:
 	//SVM();
 
 	//print
 	{
-		//std::ofstream fout("train.txt");
+#if TRAIN
+		std::ofstream fout("train.txt");
+#else
 		std::ofstream fout("test.txt");
+#endif
 		for (auto i = 0; i < target.size(); ++i)
 			fout << target[i] << "\t1:" << thetas[i] << '\n';
 		fout.close();
