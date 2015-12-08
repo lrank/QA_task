@@ -34,12 +34,10 @@ int main(int argc, char** argv) {
 	Model m;
 	SimpleSGDTrainer sgd(&m);
 
-	ComputationGraph cg;
-
-	Expression W = parameter(cg, m.add_parameters({ HIDDEN_SIZE, INPUT_SIZE }));
-	Expression b = parameter(cg, m.add_parameters({ HIDDEN_SIZE }));
-	Expression V = parameter(cg, m.add_parameters({ OUTPUT_SIZE, HIDDEN_SIZE }));
-	Expression a = parameter(cg, m.add_parameters({ OUTPUT_SIZE }));
+	Parameters* P_W = m.add_parameters({ HIDDEN_SIZE, INPUT_SIZE });
+	Parameters* P_b = m.add_parameters({ HIDDEN_SIZE });
+	Parameters* P_V = m.add_parameters({ OUTPUT_SIZE, HIDDEN_SIZE });
+	Parameters* P_a = m.add_parameters({ OUTPUT_SIZE });
 
 	vector<cnn::real> x_values;// (INPUT_SIZE * DATA_SIZE);
 	x_values.clear();
@@ -62,37 +60,77 @@ int main(int argc, char** argv) {
 
 		for (int j = 0; j < INPUT_SIZE; ++j)
 		{
-			fin >> label;
-			x_values.push_back(cnn::real(label));
+			double in;
+			fin >> in;
+			x_values.push_back(cnn::real(in));
 		}
 	}
 
 	cerr << x_values.size() << '\n' << y_values.size() << '\n';
 	Dim x_dim({ INPUT_SIZE }, DATA_SIZE), y_dim({ OUTPUT_SIZE }, DATA_SIZE);
 	cerr << "x_dim=" << x_dim << ", y_dim=" << y_dim << endl;
-	// set x_values to change the inputs to the network
-	Expression x = input(cg, x_dim, &x_values);
-	// set y_values expressing the output
-	Expression y = input(cg, y_dim, &y_values);
-
-	Expression h = logistic(W*x + b);
-	Expression y_pred = softmax(V*h + a);
-	Expression loss = binary_log_loss(y_pred, y);
-	//Expression loss = squared_distance(y_pred, y);
-	Expression sum_loss = sum_batches(loss);
-
-	cg.PrintGraphviz();
 
 	// train the parameters
 	for (unsigned iter = 0; 1; ++iter) {
-		float my_loss = as_scalar(cg.forward());
-		cg.backward();
-		sgd.update(1e-3);
-		sgd.update_epoch();
-		cerr << "ITERATIONS = " << iter << endl;
-		cerr << "E = " << my_loss << endl; //E=18.62, iter = 2500
+		{
+			ComputationGraph cg;
+
+			Expression W = parameter(cg, P_W);
+			Expression b = parameter(cg, P_b);
+			Expression V = parameter(cg, P_V);
+			Expression a = parameter(cg, P_a);
+
+			// set x_values to change the inputs to the network
+			Expression x = input(cg, x_dim, &x_values);
+			// set y_values expressing the output
+			Expression y = input(cg, y_dim, &y_values);
+
+			Expression h = logistic(W*x + b);
+			Expression y_pred = softmax(V*h + a);
+			Expression loss = binary_log_loss(y_pred, y);
+			Expression sum_loss = sum_batches(loss);
+
+			//cg.PrintGraphviz();
+
+			float my_loss = as_scalar(cg.forward());
+			cg.backward();
+			sgd.update(1);
+			sgd.update_epoch();
+			cerr << "ITERATIONS = " << iter << '\t';
+			cerr << "E = " << my_loss << '\t'; //P = 1, iter = 6000, l_rate = 1
+		}
+
+		double l = 0;
+		for (int i = 0; i < DATA_SIZE; ++i)
+		{
+			ComputationGraph cgr;
+			Expression Wr = parameter(cgr, P_W);
+			Expression br = parameter(cgr, P_b);
+			Expression Vr = parameter(cgr, P_V);
+			Expression ar = parameter(cgr, P_a);
+
+			vector<cnn::real> x(INPUT_SIZE);
+			for (int j = 0; j < INPUT_SIZE; ++j)
+			{
+				x[j] = x_values[j + i * INPUT_SIZE];
+			}
+			Expression xr = input(cgr, { INPUT_SIZE }, &x);
+			vector<cnn::real> y(2);
+			y[0] = 0; y[1] = 1;
+			Expression yr = input(cgr, { OUTPUT_SIZE }, &y);
+			Expression hr = logistic(Wr*xr + br);
+			Expression y_predr = softmax(Vr*hr + ar);
+			Expression lossr = dot_product(y_predr, yr);
+
+			double t = as_scalar(cgr.forward()) > 0.5? 0 : 1;
+			l += (t == y_values[i * 2]) ? 1 : 0;
+		}
+		cerr << "P = " << l << '\n';
+		
 	}
 	//boost::archive::text_oarchive oa(cout);
 	//oa << m;
+	system("pause");
+	return 0;
 }
 
