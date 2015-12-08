@@ -9,9 +9,9 @@ namespace token_data
     {
         static void Main(string[] args)
         {
-            using (TextReader reader = System.IO.File.OpenText("C:\\Data\\msr_paraphrase_train.txt"))
+            using (TextReader reader = System.IO.File.OpenText("C:\\Data\\semeval_for_elly_titleonly.txt"))
             {
-                using (TextWriter writer = System.IO.File.CreateText("C:\\Data\\msr_train.txt"))
+                using (TextWriter writer = System.IO.File.CreateText("C:\\Data\\semeval_for_elly_titleonly_token.txt"))
                 {
                     string[] inputdata = reader.ReadToEnd().Split('\n');
 
@@ -19,7 +19,7 @@ namespace token_data
                     {
                         string[] sp = line.Split('\t');
 
-                        writer.Write(sp[0] + ' ' + sp[1] + ' ' + sp[2] + '\n');
+                        writer.Write(sp[0] + '\t');
 
                         var tokenizerFactory = PTBTokenizer.factory(new CoreLabelTokenFactory(), "");
                         var sent2Reader1 = new java.io.StringReader(sp[3]);
@@ -33,7 +33,7 @@ namespace token_data
                         {
                             writer.Write(rawWords1.get(i) + " ");
                         }
-                        writer.Write('\n');
+                        writer.Write('\t');
 
                         for (int i = 0; i < rawWords2.size(); ++i)
                         {
