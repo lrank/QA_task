@@ -127,7 +127,7 @@ void LoadSentence(
 {
 	fprintf(stderr, "Load Sentences...\n");
 
-	const char Train_data[] = "C:\\Data\\msr_train.txt";
+	const char Train_data[] = "C:\\Data\\msr_token_test.txt";
 
 	std::ifstream fin(Train_data);
 
@@ -194,17 +194,20 @@ void LoadSentence(
 	{
 		fprintf(stderr, "choose K = ");
 		//Dynamically choose K <= median
-		std::vector<int> tmp(sentence_length);
-		sort(tmp.begin(), tmp.end());
-		K = tmp[tmp.size() / 2];
+		
+		//std::vector<int> tmp(sentence_length);
+		//sort(tmp.begin(), tmp.end());
+		//K = tmp[tmp.size() / 2];
+		K = 22;
+
 		fprintf(stderr, "%d\n", K);
 	}
 
 
 	//Matrix preprocess
 	{
-		std::ofstream fout("train.txt");
-		fout << K << '\n';
+		std::ofstream fout("C:\\Data\\msr_test.txt");
+		fout << K * K << '\t' << matrice.size() << '\n';
 		
 		int n = 0;
 		for (auto A = matrice.begin(); A != matrice.end(); ++A)
@@ -286,5 +289,6 @@ int main()
 	int K = 10;
 	LoadSentence(dict, target, K);
 
+	system("pause");
 	return 0;
 }
