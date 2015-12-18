@@ -159,6 +159,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="EmbeddingMaxtrix.cpp" />
+    <ClCompile Include="filter.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
