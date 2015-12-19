@@ -26,6 +26,7 @@ void LoadDict(
 	const char File_Embedding[] = "c:\\data\\word_embedding_simple_200.txt"; // for debug
 #else
 	const char File_Embedding[] = "c:\\data\\word_embedding_size_200.txt";
+	//const char File_Embedding[] = "c:\\data\\word_embedding_SIZE_50.txt";
 #endif
 
 	std::ifstream fin(File_Embedding);
@@ -75,8 +76,8 @@ bool LookUp(
 	{
 
 //Comment: (Y.L) think random vector for unknown word could be better here
-		for (int i = 0; i < emb_dim; ++i)
-			v[i] = dist(gen);
+//		for (int i = 0; i < emb_dim; ++i)
+//			v[i] = dist(gen);
 
 		//v = UNKNOWN;
 		return false;
@@ -133,8 +134,8 @@ inline double ComputeTriAngel(
 	std::array<double, emb_dim * 3> v1, v2;
 	for (int i = 0; i < emb_dim; ++i)
 	{
-		v1[i] = v1_0[i]; v1[i + emb_dim] = v1_1[i]; v1[i + emb_dim] = v1_2[i];
-		v1[i] = v2_0[i]; v1[i + emb_dim] = v2_1[i]; v1[i + emb_dim] = v2_2[i];
+		v1[i] = v1_0[i]; v1[i + emb_dim] = v1_1[i]; v1[i + emb_dim + emb_dim] = v1_2[i];
+		v2[i] = v2_0[i]; v2[i + emb_dim] = v2_1[i]; v2[i + emb_dim + emb_dim] = v2_2[i];
 	}
 
 	double dot = 0, l1 = 0, l2 = 0;
@@ -207,10 +208,14 @@ void LoadSentence(
 		v1.clear();
 		for (const auto& it : tok1)
 		{
-			if (!LookUp(dict, it, v))
+			//remove OOV words
+			if (LookUp(dict, it, v))
+			{
+				v1.push_back(v);
+				++lens1;
+			}
+			else
 				++c_unknown;
-			v1.push_back(v);
-			++lens1;
 		}
 		sentence_length.push_back(lens1);
 
@@ -229,10 +234,14 @@ void LoadSentence(
 		v2.clear();
 		for (const auto& it : tok2)
 		{
-			if (!LookUp(dict, it, v))
+			//remove OOV words
+			if (LookUp(dict, it, v))
+			{
+				v2.push_back(v);
+				++lens2;
+			}
+			else
 				++c_unknown;
-			v2.push_back(v);
-			++lens2;
 		}
 		sentence_length.push_back(lens2);
 		//fprintf(stderr, "Data ID %zd S1: UNKNOWN / LENGTH = %d / %d\n", sentence_length.size() / 2 + 1, c_unknown, lens2);
@@ -243,26 +252,26 @@ void LoadSentence(
 
 		std::vector<double> matrix;
 		matrix.clear();
-		BuildMatrix(lens1, lens2, v1, v2, matrix);
+		//BuildMatrix(lens1, lens2, v1, v2, matrix);
+		BuildTrigramMatrix(lens1, lens2, v1, v2, matrix);
+
 		matrice.push_back(matrix);
 
 		//Debug
 		//fprintf(stderr, "%d\n", matrice.size());
 	}
 
-	fprintf(stderr, "total words = %d, missing %d word_vec\n", total, word_count);
+	fprintf(stderr, "total words = %d, missing %d word_vec\n", total + word_count, word_count);
 
 	{
 		fprintf(stderr, "choose K = ");
 		//Dynamically choose K <= median
 		
-		/*
-		std::vector<int> tmp(sentence_length);
-		sort(tmp.begin(), tmp.end());
-		K = tmp[tmp.size() / 2];
-		*/
-
-		K = 30;
+		//std::vector<int> tmp(sentence_length);
+		//sort(tmp.begin(), tmp.end());
+		//K = tmp[tmp.size() / 2];
+		
+		K = 40;
 
 		fprintf(stderr, "%d\n", K);
 	}
@@ -271,7 +280,7 @@ void LoadSentence(
 	//Matrix preprocess
 	{
 		//std::ofstream fout("C:\\Data\\SemevalData\\SemEval.train.cross_unigram");
-		std::ofstream fout("C:\\Data\\SemevalData\\SemEval.dev.cross_trigram");
+		std::ofstream fout("C:\\Data\\SemevalData\\SemEval.dev.emb200_oov_crosstrigram_k40");
 		fout << K * K << '\t' << matrice.size() << '\n';
 		
 		int n = 0;
@@ -280,11 +289,13 @@ void LoadSentence(
 			fout << target[n / 2];
 
 			int row = sentence_length[n++], col = sentence_length[n++];
+			row -= 2; col -= 2;
+
 			boost::numeric::ublas::matrix<double> T(std::max(row, K), std::max(col, K));
 			for (int i = 0, l = 0; i < row; ++i)
 				for (int j = 0; j < col; ++j)
 					T(i, j) = A->at(l++);
-
+			 
 			//Blowup
 			if (col < K)
 			{
